@@ -2,6 +2,10 @@ import asyncio
 import aiohttp
 from cache.lru_cache import LRUCache
 from cache.lfu_cache import LFUCache
+from cache.fifo_cache import FIFOCache
+from cache.arc_cache import ARCCache
+from cache.rr_cache import RRCache
+
 from server.reverse_proxy import ReverseProxy
 
 # Choose the cache strategy
@@ -45,7 +49,12 @@ if cache_strategy == "LRU":
     cache = LRUCache(capacity=cache_capacity)
 elif cache_strategy == "LFU":
     cache = LFUCache(capacity=cache_capacity)
-
+elif cache_strategy == "FIFO":
+    cache = FIFOCache(capacity = cache_capacity)
+elif cache_strategy == "ARC":
+    cache = ARCCache(capacity=cache_capacity)
+elif cache_strategy == "RR":
+    cache = RRCache(capacity=cache_capacity)
 proxy = ReverseProxy(cache, urls)
 
 async def main():

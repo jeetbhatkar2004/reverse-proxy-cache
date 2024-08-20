@@ -1,5 +1,6 @@
 import asyncio
 import json
+from tkinter import ARC
 import websockets
 import sys
 import os
@@ -10,6 +11,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'
 
 from src.cache.lru_cache import LRUCache
 from src.cache.lfu_cache import LFUCache
+from src.cache.fifo_cache import FIFOCache
+from src.cache.arc_cache import ARCCache
+from src.cache.rr_cache import RRCache
+
+
 from src.server.reverse_proxy import ReverseProxy
 
 clients = []
@@ -32,8 +38,12 @@ async def log_server(websocket, path):
                 cache = LRUCache(capacity=32)
             elif cache_strategy == "LFU":
                 cache = LFUCache(capacity=32)
-            else:
-                cache = LRUCache(capacity=32)  # Default to LRU
+            elif cache_strategy == "FIFO":
+                cache = FIFOCache(capacity = 32)
+            elif cache_strategy == "ARC":
+                cache = ARCCache(capacity = 32)
+            elif cache_strategy == "RR":
+                cache = RRCache(capacity = 32)
 
             # Create the reverse proxy instance
             proxy = ReverseProxy(cache, urls)
