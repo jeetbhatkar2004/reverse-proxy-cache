@@ -1,7 +1,6 @@
 import asyncio
 import aiohttp
 
-
 class ReverseProxy:
     def __init__(self, cache, urls):
         self.cache = cache
@@ -15,17 +14,14 @@ class ReverseProxy:
             try:
                 async with self.lock:
                     if self.cache.contains(url):
-                        print(f"Cache hit for {url}")
-                        return self.cache.get(url)
+                        return f"Cache hit for {url}"  # Return a specific message for cache hits
                     print(f"Cache miss for {url}")
 
                 async with self.session.get(url, ssl=False, timeout=10) as response:
                     content = await response.text()
-                    
                     async with self.lock:
                         self.cache.put(url, content)
-                    
-                    return content
+                    return content  # Return fetched content for cache miss
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 if attempt == max_retries - 1:
                     print(f"Failed to fetch {url} after {max_retries} attempts: {e}")

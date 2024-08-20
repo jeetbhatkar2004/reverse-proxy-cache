@@ -40,5 +40,8 @@ class LFUCache:
             self.key_map[key] = (value, 1)
             self.min_freq = 1
 
+    def contains(self, key: int) -> bool:
+        return key in self.key_map
+
     def __str__(self):
         return str(self.key_map)
