@@ -3,7 +3,7 @@ body {
     margin: 20px;
 }
 
-h1 {
+h1, h2 {
     color: #333;
 }
 
@@ -13,6 +13,8 @@ form {
 
 textarea {
     width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
 }
 
 button {
@@ -41,4 +43,13 @@ button:hover {
     margin: 5px 0;
     padding: 10px;
     border: 1px solid #ddd;
+}
+
+#dashboard {
+    margin-top: 20px;
+}
+
+#dashboard p {
+    font-size: 16px;
+    margin: 5px 0;
 }

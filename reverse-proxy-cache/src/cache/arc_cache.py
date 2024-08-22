@@ -8,15 +8,20 @@ class ARCCache:
         self.b1 = OrderedDict()  # Ghost list for recently evicted from t1
         self.b2 = OrderedDict()  # Ghost list for recently evicted from t2
         self.p = 0  # Target size for t1
+        self.hits = 0  # Counter for cache hits
+        self.misses = 0  # Counter for cache misses
 
     def get(self, key: str) -> str:
         if key in self.t1:
             value = self.t1.pop(key)
             self.t2[key] = value  # Move to t2 since it's now a frequent item
+            self.hits += 1
             return value
         elif key in self.t2:
             value = self.t2[key]  # Access from t2 doesn't change anything
+            self.hits += 1
             return value
+        self.misses += 1
         return -1  # Key not found
 
     def put(self, key: str, value: str) -> None:
@@ -66,6 +71,9 @@ class ARCCache:
 
     def contains(self, key: str) -> bool:
         return key in self.t1 or key in self.t2
+
+    def get_cache_stats(self):
+        return {"hits": self.hits, "misses": self.misses}
 
     def __str__(self):
         return f"T1: {self.t1}, T2: {self.t2}, B1: {self.b1}, B2: {self.b2}, P: {self.p}"
