@@ -11,10 +11,6 @@ document.getElementById('url-form').addEventListener('submit', function(event) {
     // Hide the dashboard initially
     document.getElementById('dashboard').style.display = 'none';
 
-    // Reset cache stats
-    let totalHits = 0;
-    let totalMisses = 0;
-
     // Close the previous WebSocket connection if it exists and is open
     if (window.socket && window.socket.readyState === WebSocket.OPEN) {
         window.socket.close();
@@ -32,8 +28,6 @@ document.getElementById('url-form').addEventListener('submit', function(event) {
     };
 
     window.socket.onmessage = function(event) {
-        console.log('Raw response:', event.data);  // Log the raw response
-
         let response;
         try {
             // Try to parse the response as JSON
@@ -43,27 +37,22 @@ document.getElementById('url-form').addEventListener('submit', function(event) {
             response = { data: event.data };
         }
 
-        console.log('Processed response:', response);  // Log the processed response
+        console.log('Received response:', response);  // Log the received response
 
         // Update the log messages
         const newMessage = document.createElement('li');
         newMessage.textContent = response.data;
         log.appendChild(newMessage);
 
-        // Update cache stats based on the response
-        if (response.data.includes("Cache hit")) {
-            totalHits++;
-        } else if (response.data.includes("Cache miss")) {
-            totalMisses++;
-        }
-
-        // Update the dashboard
-        document.getElementById('cache-hits-value').textContent = totalHits;
-        document.getElementById('cache-misses-value').textContent = totalMisses;
-        document.getElementById('dashboard').style.display = 'block';
-
         // Update the processed count
-        processedCount++;
+        processedCount += 1;
+
+        // If cache stats are available, update the dashboard
+        if (response.cacheStats) {
+            document.getElementById('cache-hits-value').textContent = response.cacheStats.hits;
+            document.getElementById('cache-misses-value').textContent = response.cacheStats.misses;
+            document.getElementById('dashboard').style.display = 'block';
+        }
 
         // If all URLs are processed, ensure the dashboard is visible
         if (processedCount === urls.length) {

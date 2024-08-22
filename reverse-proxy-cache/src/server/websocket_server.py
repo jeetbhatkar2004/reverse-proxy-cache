@@ -54,8 +54,10 @@ async def log_server(websocket, path):
                     result = await proxy.fetch(url)
                     
                     # Determine if it was a cache hit or miss
-                    is_hit = result and "Cache hit" in result
-                    response_message = f"Cache {'hit' if is_hit else 'miss'} for {url}"
+                    if result and "Cache hit" in result:
+                        response_message = f"Cache hit for {url}"
+                    else:
+                        response_message = f"Cache miss for {url}"
                     
                     # Get cache stats
                     cache_stats = cache.get_cache_stats()
