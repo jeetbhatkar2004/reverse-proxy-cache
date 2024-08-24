@@ -13,61 +13,62 @@ class ARCCache:
 
     def get(self, key: str) -> str:
         if key in self.t1:
+            self.hits += 1
             value = self.t1.pop(key)
             self.t2[key] = value  # Move to t2 since it's now a frequent item
-            self.hits += 1
             return value
         elif key in self.t2:
-            value = self.t2[key]  # Access from t2 doesn't change anything
             self.hits += 1
-            return value
+            self.t2.move_to_end(key)  # Move to the end of t2
+            return self.t2[key]
         self.misses += 1
         return -1  # Key not found
 
     def put(self, key: str, value: str) -> None:
-        if key in self.t1:
-            self.t1.pop(key)
+        if key in self.t1 or key in self.t2:
+            self.hits += 1
+            if key in self.t1:
+                self.t1.pop(key)
+            else:
+                self.t2.pop(key)
             self.t2[key] = value  # Move to t2 since it's now a frequent item
-        elif key in self.t2:
-            self.t2[key] = value  # Update the value in t2
         elif key in self.b1:
-            # Case where the item was in b1 (t1 ghost), increase p
-            self._adapt(True)
-            self._replace(key, value)
+            self._adapt(len(self.b1) / (len(self.b1) + len(self.b2)))
+            self._replace(key)
             self.b1.pop(key)
             self.t2[key] = value
         elif key in self.b2:
-            # Case where the item was in b2 (t2 ghost), decrease p
-            self._adapt(False)
-            self._replace(key, value)
+            self._adapt(len(self.b2) / (len(self.b1) + len(self.b2)))
+            self._replace(key)
             self.b2.pop(key)
             self.t2[key] = value
         else:
-            # New item case
-            if len(self.t1) + len(self.b1) == self.capacity:
+            self.misses += 1
+            if len(self.t1) + len(self.t2) >= self.capacity:
                 if len(self.t1) < self.capacity:
-                    self.b1.popitem(last=False)
-                    self._replace(key, value)
+                    if len(self.t1) + len(self.b1) >= self.capacity:
+                        self.b1.popitem(last=False)
+                    self._replace(key)
                 else:
                     self.t1.popitem(last=False)
-            elif len(self.t1) + len(self.b1) + len(self.t2) + len(self.b2) >= self.capacity:
-                if len(self.t1) + len(self.b1) + len(self.t2) + len(self.b2) == 2 * self.capacity:
-                    self.b2.popitem(last=False)
+            else:
+                total = len(self.t1) + len(self.b1) + len(self.t2) + len(self.b2)
+                if total >= self.capacity:
+                    if total == 2 * self.capacity:
+                        self.b2.popitem(last=False)
+                    self._replace(key)
             self.t1[key] = value
 
-    def _replace(self, key: str, value: str) -> None:
-        if len(self.t1) > 0 and (len(self.t1) > self.p or (key in self.b2 and len(self.t1) == self.p)):
-            evicted_key, evicted_value = self.t1.popitem(last=False)
-            self.b1[evicted_key] = evicted_value  # Add to ghost list b1
+    def _replace(self, key: str) -> None:
+        if self.t1 and (len(self.t1) > self.p or (key in self.b2 and len(self.t1) == self.p)):
+            old_key, old_value = self.t1.popitem(last=False)
+            self.b1[old_key] = old_value
         else:
-            evicted_key, evicted_value = self.t2.popitem(last=False)
-            self.b2[evicted_key] = evicted_value  # Add to ghost list b2
+            old_key, old_value = self.t2.popitem(last=False)
+            self.b2[old_key] = old_value
 
-    def _adapt(self, increase: bool) -> None:
-        if increase:
-            self.p = min(self.capacity, self.p + max(1, len(self.b2) // len(self.b1)))
-        else:
-            self.p = max(0, self.p - max(1, len(self.b1) // len(self.b2)))
+    def _adapt(self, delta: float) -> None:
+        self.p = min(self.capacity, max(0, self.p + delta))
 
     def contains(self, key: str) -> bool:
         return key in self.t1 or key in self.t2

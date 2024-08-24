@@ -9,21 +9,21 @@ class LRUCache:
 
     def get(self, key: str) -> str:
         if key not in self.cache:
-            self.misses += 1
+            self.misses += 1  # Increment misses when the key is not found
             return -1  # or None if you prefer
         self.cache.move_to_end(key)
-        self.hits += 1
+        self.hits += 1  # Increment hits when the key is found
         return self.cache[key]
 
     def put(self, key: str, value: str) -> None:
         if key in self.cache:
             self.cache.move_to_end(key)
+            self.hits += 1  # Increment hits when updating an existing key
         else:
-            self.misses += 1
+            self.misses += 1  # Increment misses when adding a new key
+            if len(self.cache) >= self.capacity:
+                self.cache.popitem(last=False)  # Evict the least recently used item
         self.cache[key] = value
-
-        if len(self.cache) > self.capacity:
-            evicted_key, _ = self.cache.popitem(last=False)
 
     def contains(self, key: str) -> bool:
         return key in self.cache

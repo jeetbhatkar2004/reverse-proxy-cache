@@ -14,7 +14,7 @@ class ReverseProxy:
             try:
                 async with self.lock:
                     if self.cache.contains(url):
-                        return f"Cache hit for {url}"  # Return a specific message for cache hits
+                        print( f"Cache hit for {url}" ) # Return a specific message for cache hits
                     print(f"Cache miss for {url}")
 
                 async with self.session.get(url, ssl=False, timeout=10) as response:
