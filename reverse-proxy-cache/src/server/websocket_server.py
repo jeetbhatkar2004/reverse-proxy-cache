@@ -14,76 +14,79 @@ from src.cache.fifo_cache import FIFOCache
 from src.cache.arc_cache import ARCCache
 from src.cache.rr_cache import RRCache
 
-from src.server.reverse_proxy import ReverseProxy
+clients = set()
 
-clients = []
+def get_cache_strategy(strategy_name):
+    cache_strategies = {
+        "LRU": LRUCache,
+        "LFU": LFUCache,
+        "FIFO": FIFOCache,
+        "ARC": ARCCache,
+        "RR": RRCache
+    }
+    return cache_strategies.get(strategy_name, LRUCache)
 
-async def log_server(websocket, path):
+async def handle_client(websocket, path, ReverseProxy):
     print("New client connected")
-    clients.append(websocket)
+    clients.add(websocket)
     try:
         async for message in websocket:
-            print(f"Received message: {message}")
-            data = json.loads(message)
-            urls = data.get("urls", [])
-            cache_strategy = data.get("cacheStrategy", "LRU")
-
-            print(f"Cache strategy selected: {cache_strategy}")
-            print(f"URLs to fetch: {urls}")
-
-            # Select the cache strategy
-            if cache_strategy == "LRU":
-                cache = LRUCache(capacity=32)
-            elif cache_strategy == "LFU":
-                cache = LFUCache(capacity=32)
-            elif cache_strategy == "FIFO":
-                cache = FIFOCache(capacity=32)
-            elif cache_strategy == "ARC":
-                cache = ARCCache(capacity=32)
-            elif cache_strategy == "RR":
-                cache = RRCache(capacity=32)
-            else:
-                cache = LRUCache(capacity=32)  # Default to LRU if the strategy is unknown
-
-            # Create the reverse proxy instance
-            proxy = ReverseProxy(cache, urls)
-            async with aiohttp.ClientSession() as session:
-                proxy.session = session
-                for url in urls:
-                    print(f"Fetching URL: {url}")
-                    result = await proxy.fetch(url)
-                    
-                    # Determine if it was a cache hit or miss
-                    if result and "Cache hit" in result:
-                        response_message = f"Cache hit for {url}"
-                    else:
-                        response_message = f"Cache miss for {url}"
-                    
-                    # Get cache stats
-                    cache_stats = cache.get_cache_stats()
-                    print(f"Current cache stats: {cache_stats}")  # Log the cache stats
-                    
-                    # Ensure that the response is always in JSON format
-                    response_json = json.dumps({
-                        "data": response_message,
-                        "cacheStats": cache_stats
-                    })
-
-                    print(f"Sending response: {response_json}")
-                    await websocket.send(response_json)
-                    await asyncio.sleep(0.1)  # Simulate a delay for real-time effect
+            await process_message(websocket, message, ReverseProxy)
+    except websockets.exceptions.ConnectionClosed:
+        print("Client disconnected")
     except Exception as e:
         print(f"Error occurred: {e}")
     finally:
-        print("Client disconnected")
         clients.remove(websocket)
 
-start_server = websockets.serve(log_server, "localhost", 6789)
+async def process_message(websocket, message, ReverseProxy):
+    print(f"Received message: {message}")
+    data = json.loads(message)
+    urls = data.get("urls", [])
+    cache_strategy = data.get("cacheStrategy", "LRU")
 
-async def main():
-    print("Starting server...")
-    await start_server
+    print(f"Cache strategy selected: {cache_strategy}")
+    print(f"URLs to fetch: {urls}")
 
-asyncio.get_event_loop().run_until_complete(main())
-print("Server started")
-asyncio.get_event_loop().run_forever()
+    cache_class = get_cache_strategy(cache_strategy)
+    cache = cache_class(capacity=32)
+    proxy = ReverseProxy(cache, urls)
+
+    async with aiohttp.ClientSession() as session:
+        proxy.session = session
+        for url in urls:
+            await process_url(websocket, proxy, url)
+
+async def process_url(websocket, proxy, url):
+    print(f"Fetching URL: {url}")
+    result = await proxy.fetch(url)
+    
+    if result is None:
+        response_message = f"Failed to fetch {url}"
+    else:
+        # The fetch method now returns a tuple (cache_status, content)
+        cache_status, content = result
+        response_message = f"{cache_status} for {url}"
+    
+    cache_stats = proxy.cache.get_cache_stats()
+    print(f"Current cache stats: {cache_stats}")
+    
+    response_json = json.dumps({
+        "data": response_message,
+        "cacheStats": cache_stats
+    })
+
+    print(f"Sending response: {response_json}")
+    await websocket.send(response_json)
+    await asyncio.sleep(0.1)  # Simulate a delay for real-time effect
+
+async def start_server(ReverseProxy):
+    server = await websockets.serve(
+        lambda ws, path: handle_client(ws, path, ReverseProxy),
+        "localhost", 6789
+    )
+    print("Server started")
+    await server.wait_closed()
+
+def run_server(ReverseProxy):
+    asyncio.run(start_server(ReverseProxy))
