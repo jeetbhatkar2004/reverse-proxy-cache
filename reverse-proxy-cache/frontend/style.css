@@ -3,7 +3,7 @@ body {
     margin: 20px;
 }
 
-h1, h2 {
+h1 {
     color: #333;
 }
 
@@ -13,8 +13,6 @@ form {
 
 textarea {
     width: 100%;
-    padding: 10px;
-    margin-bottom: 10px;
 }
 
 button {
@@ -45,11 +43,10 @@ button:hover {
     border: 1px solid #ddd;
 }
 
-#dashboard {
-    margin-top: 20px;
-}
-
-#dashboard p {
+/* Style the time-taken span */
+#time-taken {
+    margin-left: 20px;
+    font-weight: bold;
     font-size: 16px;
-    margin: 5px 0;
+    color: #555;
 }
