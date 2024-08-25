@@ -51,28 +51,13 @@ async def process_message(websocket, message):
     cache = cache_class(capacity=32)
     proxy = ReverseProxy(cache, urls, num_nodes)
 
-    processed_count = 0
-    total_urls = len(urls)
-
-    async for result in proxy.process_urls():
-        cache_status, content, node_port = result
-        cache_stats = proxy.cache.get_cache_stats()
-        node_status = proxy.get_node_status()
-        
-        processed_count += 1
-        response_json = json.dumps({
-            "data": f"{cache_status} for {proxy.nodes[node_port - 8000].current_url}",
-            "cacheStats": cache_stats,
-            "nodeStatus": node_status,
-            "progress": f"{processed_count}/{total_urls}"
-        })
-
-        print(f"Sending response: {response_json}")
-        await websocket.send(response_json)
+    await proxy.process_urls(websocket)  # Pass websocket to process_urls
 
     # Send a final message to indicate all URLs have been processed
     await websocket.send(json.dumps({"data": "All URLs processed", "final": True}))
     print("All URLs processed. Closing connection.")
+
+
 
 async def start_server(stop_server_event):
     server = await websockets.serve(
@@ -81,7 +66,6 @@ async def start_server(stop_server_event):
     )
     print("Server started")
     await stop_server_event.wait()
-    server.close()
     await server.wait_closed()
     print("Server stopped")
 
