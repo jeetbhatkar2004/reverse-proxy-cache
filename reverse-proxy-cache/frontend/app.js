@@ -2,16 +2,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlForm = document.getElementById('url-form');
     const urlInput = document.getElementById('urls');
     const cacheStrategySelect = document.getElementById('cache-strategy');
+    const numNodesSlider = document.getElementById('num-nodes');
+    const numNodesValue = document.getElementById('num-nodes-value');
     const logMessages = document.getElementById('log-messages');
     const dashboard = document.getElementById('dashboard');
     const timeTakenElement = document.getElementById('time-taken');
     const cacheHitsElement = document.getElementById('cache-hits-value');
     const cacheMissesElement = document.getElementById('cache-misses-value');
+    const nodeStatusElement = document.getElementById('node-status');
 
     let socket;
     let startTime;
     let processedCount;
     let totalUrls;
+
+    numNodesSlider.addEventListener('input', () => {
+        numNodesValue.textContent = numNodesSlider.value;
+    });
 
     urlForm.addEventListener('submit', handleFormSubmit);
 
@@ -19,15 +26,17 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         const urls = urlInput.value.split('\n').filter(url => url.trim() !== "");
         const cacheStrategy = cacheStrategySelect.value;
+        const numNodes = parseInt(numNodesSlider.value);
 
         resetUI();
         closeExistingSocket();
-        initializeWebSocket(urls, cacheStrategy);
+        initializeWebSocket(urls, cacheStrategy, numNodes);
     }
 
     function resetUI() {
         logMessages.innerHTML = '';
         dashboard.style.display = 'none';
+        nodeStatusElement.innerHTML = '';
         processedCount = 0;
         startTime = Date.now();
     }
@@ -38,11 +47,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function initializeWebSocket(urls, cacheStrategy) {
+    function initializeWebSocket(urls, cacheStrategy, numNodes) {
         socket = new WebSocket('ws://localhost:6789');
         totalUrls = urls.length;
 
-        socket.onopen = () => handleSocketOpen(urls, cacheStrategy);
+        socket.onopen = () => handleSocketOpen(urls, cacheStrategy, numNodes);
         socket.onmessage = handleSocketMessage;
         socket.onerror = handleSocketError;
         socket.onclose = handleSocketClose;
@@ -50,8 +59,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Form submitted. Starting WebSocket connection...');
     }
 
-    function handleSocketOpen(urls, cacheStrategy) {
-        const data = JSON.stringify({ urls, cacheStrategy });
+    function handleSocketOpen(urls, cacheStrategy, numNodes) {
+        const data = JSON.stringify({ urls, cacheStrategy, numNodes });
         socket.send(data);
         console.log('WebSocket opened. Sent initial data.');
     }
@@ -66,11 +75,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         updateLog(response.data);
+        updateNodeStatus(response.nodeStatus);
         updateProcessedCount();
         updateTimeTaken();
+        updateCacheStats(response.cacheStats);
 
-        if (processedCount === totalUrls) {
-            handleAllUrlsProcessed(response.cacheStats);
+        if (response.data.includes("Failed to fetch") || processedCount === totalUrls) {
+            handleProcessingComplete();
         }
     }
 
@@ -78,6 +89,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const newMessage = document.createElement('li');
         newMessage.textContent = message;
         logMessages.appendChild(newMessage);
+
+        if (message.includes("All nodes busy")) {
+            const busyMessage = document.createElement('li');
+            busyMessage.textContent = "Processing stopped: All nodes are busy";
+            busyMessage.style.color = 'red';
+            logMessages.appendChild(busyMessage);
+        }
+    }
+
+    function handleProcessingComplete() {
+        const completionMessage = document.createElement('li');
+        completionMessage.textContent = `Processing complete. ${processedCount} out of ${totalUrls} URLs processed.`;
+        completionMessage.style.fontWeight = 'bold';
+        logMessages.appendChild(completionMessage);
+
+        console.log(`All URLs processed or stopped due to busy nodes. Final time: ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
+    }
+
+    function updateNodeStatus(nodeStatus) {
+        if (nodeStatus) {
+            nodeStatusElement.innerHTML = nodeStatus.join('<br>');
+        }
     }
 
     function updateProcessedCount() {
@@ -92,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(`Time taken: ${timeTaken.toFixed(2)}s`);
     }
 
-    function handleAllUrlsProcessed(cacheStats) {
+    function updateCacheStats(cacheStats) {
         if (cacheStats) {
             console.log(`Cache Hits: ${cacheStats.hits}`);
             console.log(`Cache Misses: ${cacheStats.misses}`);
@@ -100,7 +133,6 @@ document.addEventListener('DOMContentLoaded', () => {
             cacheMissesElement.textContent = cacheStats.misses;
             dashboard.style.display = 'block';
         }
-        console.log(`All URLs processed. Final time: ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
     }
 
     function handleSocketError(error) {

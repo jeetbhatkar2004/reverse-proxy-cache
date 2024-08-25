@@ -3,34 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reverse Proxy Cache</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Reverse Proxy Cache with Load Balancing</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            display: flex;
+        }
+        .left-panel { flex: 1; }
+        .right-panel { flex: 1; margin-left: 20px; }
+        h1, h2 { color: #333; }
+        form { margin-bottom: 20px; }
+        textarea { width: 100%; }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover { background-color: #45a049; }
+        #log { margin-top: 20px; }
+        #log ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        #log li {
+            background: #f9f9f9;
+            margin: 5px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        #time-taken {
+            margin-left: 20px;
+            font-weight: bold;
+            font-size: 16px;
+            color: #555;
+        }
+        #node-status {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 20px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Reverse Proxy Cache</h1>
-    <form id="url-form">
-        <textarea id="urls" rows="10" cols="50" placeholder="Enter URLs here..."></textarea><br>
-        <label for="cache-strategy">Cache Strategy:</label>
-        <select id="cache-strategy">
-            <option value="LRU">LRU</option>
-            <option value="LFU">LFU</option>
-            <option value="FIFO">FIFO</option>
-            <option value="ARC">ARC</option>
-            <option value="RR">RR</option>
-        </select><br><br>
-        <button type="submit">Submit</button>
-        <span id="time-taken">Time Taken: 0s</span> <!-- Timer Placeholder -->
-    </form>
-    
-    <div id="log">
-        <h2>Real-Time Log</h2>
-        <ul id="log-messages"></ul>
+    <div class="left-panel">
+        <h1>Reverse Proxy Cache with Load Balancing</h1>
+        <form id="url-form">
+            <textarea id="urls" rows="10" cols="50" placeholder="Enter URLs here..."></textarea><br>
+            <label for="cache-strategy">Cache Strategy:</label>
+            <select id="cache-strategy">
+                <option value="LRU">LRU</option>
+                <option value="LFU">LFU</option>
+                <option value="FIFO">FIFO</option>
+                <option value="ARC">ARC</option>
+                <option value="RR">RR</option>
+            </select><br>
+            <label for="num-nodes">Number of Nodes:</label>
+            <input type="range" id="num-nodes" min="1" max="10" value="1">
+            <span id="num-nodes-value">1</span><br><br>
+            <button type="submit">Submit</button>
+            <span id="time-taken">Time Taken: 0s</span>
+        </form>
+        
+        <div id="log">
+            <h2>Real-Time Log</h2>
+            <ul id="log-messages"></ul>
+        </div>
+        
+        <div id="dashboard" style="display:none;">
+            <h2>Cache Statistics</h2>
+            <p id="cache-hits">Cache Hits: <span id="cache-hits-value"></span></p>
+            <p id="cache-misses">Cache Misses: <span id="cache-misses-value"></span></p>
+        </div>
     </div>
-    
-    <div id="dashboard" style="display:none;">
-        <h2>Cache Statistics</h2>
-        <p id="cache-hits">Cache Hits: <span id="cache-hits-value"></span></p>
-        <p id="cache-misses">Cache Misses: <span id="cache-misses-value"></span></p>
+    <div class="right-panel">
+        <h2>Node Status</h2>
+        <div id="node-status"></div>
     </div>
 
     <script src="app.js"></script>

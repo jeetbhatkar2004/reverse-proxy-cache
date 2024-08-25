@@ -1,4 +1,11 @@
-from server import start_websocket_server
+import os
+import sys
+
+# Add the project root directory to the Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_root)
+
+from src.server import start_websocket_server
 
 if __name__ == "__main__":
     start_websocket_server()
