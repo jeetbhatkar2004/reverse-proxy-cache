@@ -42,16 +42,18 @@ async def process_message(websocket, message):
     data = json.loads(message)
     urls = data.get("urls", [])
     cache_strategy = data.get("cacheStrategy", "LRU")
+    load_balancer = data.get("loadBalancer", "round_robin")
     num_nodes = data.get("numNodes", 1)
     cache_size = data.get("cacheSize", 1)  # Default to 32 if not provided
 
     print(f"Cache strategy selected: {cache_strategy}")
+    print(f"Load balancer selected: {load_balancer}")
     print(f"Number of nodes: {num_nodes}")
     print(f"Cache size: {cache_size}")
     print(f"URLs to fetch: {urls}")
 
     cache_class = get_cache_strategy(cache_strategy)
-    proxy = ReverseProxy(cache_class, urls, num_nodes, cache_size)
+    proxy = ReverseProxy(cache_class, urls, num_nodes, cache_size, load_balancer)
 
     await proxy.process_urls(websocket)
 

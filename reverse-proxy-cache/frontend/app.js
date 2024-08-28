@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cacheMissesElement = document.getElementById('cache-misses-value');
     const nodeStatusElement = document.getElementById('node-status');
     const cacheSizeInput = document.getElementById('cache-size');
+    const loadBalancerSelect = document.getElementById('load-balancer');
 
 
     let socket;
@@ -29,18 +30,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const urls = urlInput.value.split('\n').filter(url => url.trim() !== "");
         const cacheStrategy = cacheStrategySelect.value;
         const numNodes = parseInt(numNodesSlider.value);
+        const loadBalancer = loadBalancerSelect.value;
         const cacheSize = parseInt(cacheSizeInput.value);
 
         resetUI();
         closeExistingSocket();
-        initializeWebSocket(urls, cacheStrategy, numNodes, cacheSize);
+        initializeWebSocket(urls, cacheStrategy, loadBalancer, numNodes, cacheSize);
     }
 
-    function initializeWebSocket(urls, cacheStrategy, numNodes, cacheSize) {
+    function initializeWebSocket(urls, cacheStrategy, loadBalancer,numNodes, cacheSize) {
         socket = new WebSocket('ws://localhost:6789');
         totalUrls = urls.length;
 
-        socket.onopen = () => handleSocketOpen(urls, cacheStrategy, numNodes, cacheSize);
+        socket.onopen = () => handleSocketOpen(urls, cacheStrategy,loadBalancer, numNodes, cacheSize);
         socket.onmessage = handleSocketMessage;
         socket.onerror = handleSocketError;
         socket.onclose = handleSocketClose;
@@ -48,8 +50,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Form submitted. Starting WebSocket connection...');
     }
 
-    function handleSocketOpen(urls, cacheStrategy, numNodes, cacheSize) {
-        const data = JSON.stringify({ urls, cacheStrategy, numNodes, cacheSize });
+    function handleSocketOpen(urls, cacheStrategy, loadBalancer, numNodes, cacheSize) {
+        const data = JSON.stringify({ urls, cacheStrategy, loadBalancer, numNodes, cacheSize });
         socket.send(data);
         console.log('WebSocket opened. Sent initial data:', data);
     }
@@ -68,11 +70,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function initializeWebSocket(urls, cacheStrategy, numNodes, cacheSize) {
+    function initializeWebSocket(urls, cacheStrategy, loadBalancer,numNodes, cacheSize) {
         socket = new WebSocket('ws://localhost:6789');
         totalUrls = urls.length;
 
-        socket.onopen = () => handleSocketOpen(urls, cacheStrategy, numNodes, cacheSize);
+        socket.onopen = () => handleSocketOpen(urls, cacheStrategy, loadBalancer, numNodes, cacheSize);
         socket.onmessage = handleSocketMessage;
         socket.onerror = handleSocketError;
         socket.onclose = handleSocketClose;
@@ -80,8 +82,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Form submitted. Starting WebSocket connection...');
     }
 
-    function handleSocketOpen(urls, cacheStrategy, numNodes, cacheSize) {
-        const data = JSON.stringify({ urls, cacheStrategy, numNodes, cacheSize });
+    function handleSocketOpen(urls, cacheStrategy, loadBalancer,numNodes, cacheSize) {
+        const data = JSON.stringify({ urls, cacheStrategy, loadBalancer,numNodes, cacheSize });
         socket.send(data);
         console.log('WebSocket opened. Sent initial data.');
     }
