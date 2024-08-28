@@ -36,22 +36,24 @@ async def handle_client(websocket, path, stop_server_event):
     finally:
         stop_server_event.set()
 
+
 async def process_message(websocket, message):
     print(f"Received message: {message}")
     data = json.loads(message)
     urls = data.get("urls", [])
     cache_strategy = data.get("cacheStrategy", "LRU")
     num_nodes = data.get("numNodes", 1)
+    cache_size = data.get("cacheSize", 1)  # Default to 32 if not provided
 
     print(f"Cache strategy selected: {cache_strategy}")
     print(f"Number of nodes: {num_nodes}")
+    print(f"Cache size: {cache_size}")
     print(f"URLs to fetch: {urls}")
 
     cache_class = get_cache_strategy(cache_strategy)
-    cache = cache_class(capacity=32)
-    proxy = ReverseProxy(cache, urls, num_nodes)
+    proxy = ReverseProxy(cache_class, urls, num_nodes, cache_size)
 
-    await proxy.process_urls(websocket)  # Pass websocket to process_urls
+    await proxy.process_urls(websocket)
 
     # Send a final message to indicate all URLs have been processed
     await websocket.send(json.dumps({"data": "All URLs processed", "final": True}))
