@@ -1,35 +1,39 @@
-from collections import OrderedDict
+import redis
 
 class LRUCache:
-    def __init__(self, capacity: int):
-        self.cache = OrderedDict()
+    def __init__(self, capacity: int, host='localhost', port=6379, db=0):
+        self.redis = redis.Redis(host=host, port=port, db=db)
         self.capacity = capacity
-        self.hits = 0  # Counter for cache hits
-        self.misses = 0  # Counter for cache misses
+        self.hits = 0
+        self.misses = 0
+        self.key_list = 'lru_keys'
 
     def get(self, key: str) -> str:
-        if key not in self.cache:
-            self.misses += 1  # Increment misses when the key is not found
-            return -1  # or None if you prefer
-        self.cache.move_to_end(key)
-        self.hits += 1  # Increment hits when the key is found
-        return self.cache[key]
+        if not self.redis.exists(key):
+            self.misses += 1
+            return -1
+        self.redis.lrem(self.key_list, 0, key)
+        self.redis.rpush(self.key_list, key)
+        self.hits += 1
+        return self.redis.get(key)
 
     def put(self, key: str, value: str) -> None:
-        if key in self.cache:
-            self.cache.move_to_end(key)
-            self.hits += 1  # Increment hits when updating an existing key
+        if self.redis.exists(key):
+            self.redis.lrem(self.key_list, 0, key)
+            self.hits += 1
         else:
-            self.misses += 1  # Increment misses when adding a new key
-            if len(self.cache) >= self.capacity:
-                self.cache.popitem(last=False)  # Evict the least recently used item
-        self.cache[key] = value
+            self.misses += 1
+            if self.redis.llen(self.key_list) >= self.capacity:
+                lru_key = self.redis.lpop(self.key_list)
+                self.redis.delete(lru_key)
+        self.redis.rpush(self.key_list, key)
+        self.redis.set(key, value)
 
     def contains(self, key: str) -> bool:
-        return key in self.cache
+        return self.redis.exists(key)
 
     def get_cache_stats(self):
         return {"hits": self.hits, "misses": self.misses}
 
     def __str__(self):
-        return str(self.cache)
+        return str(self.redis.lrange(self.key_list, 0, -1))

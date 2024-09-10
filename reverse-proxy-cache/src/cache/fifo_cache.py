@@ -1,33 +1,36 @@
-from collections import OrderedDict
+import redis
 
 class FIFOCache:
-    def __init__(self, capacity: int):
-        self.cache = OrderedDict()
+    def __init__(self, capacity: int, host='localhost', port=6379, db=0):
+        self.redis = redis.Redis(host=host, port=port, db=db)
         self.capacity = capacity
-        self.hits = 0  # Counter for cache hits
-        self.misses = 0  # Counter for cache misses
+        self.hits = 0
+        self.misses = 0
+        self.key_list = 'fifo_keys'
 
     def get(self, key: str) -> str:
-        if key not in self.cache:
-            self.misses += 1  # Increment misses when the key is not found
-            return -1  # or None if you prefer
-        self.hits += 1  # Increment hits when the key is found
-        return self.cache[key]
+        if not self.redis.exists(key):
+            self.misses += 1
+            return -1
+        self.hits += 1
+        return self.redis.get(key)
 
     def put(self, key: str, value: str) -> None:
-        if key not in self.cache:
-            self.misses += 1  # Since we're inserting, it was a miss before
-            if len(self.cache) >= self.capacity:
-                self.cache.popitem(last=False)  # Evict the oldest item
+        if not self.redis.exists(key):
+            self.misses += 1
+            if self.redis.llen(self.key_list) >= self.capacity:
+                oldest_key = self.redis.lpop(self.key_list)
+                self.redis.delete(oldest_key)
         else:
-            self.hits += 1  # If the key exists, it's a hit
-        self.cache[key] = value
+            self.hits += 1
+        self.redis.set(key, value)
+        self.redis.rpush(self.key_list, key)
 
     def contains(self, key: str) -> bool:
-        return key in self.cache
+        return self.redis.exists(key)
 
     def get_cache_stats(self):
         return {"hits": self.hits, "misses": self.misses}
 
     def __str__(self):
-        return str(self.cache)
+        return str(self.redis.lrange(self.key_list, 0, -1))
