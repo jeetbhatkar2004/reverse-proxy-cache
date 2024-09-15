@@ -134,14 +134,11 @@ class ARCCache:
         return items
 
     def clear(self):
-        # Delete all keys related to this cache instance
-        keys = self.redis.keys(f"{self.cache_prefix}:*")
-        if keys:
-            self.redis.delete(*keys)
+        # Flush the entire Redis database used by this cache
+        self.redis.flushdb()
         # Reset hits and misses counters in Redis
         self.redis.set(self.hits_key, 0)
         self.redis.set(self.misses_key, 0)
-        self.p = 0  # Reset target size
 
     def __str__(self):
         return f"T1: {self._get_list('t1')}, T2: {self._get_list('t2')}, B1: {self._get_list('b1')}, B2: {self._get_list('b2')}, P: {self.p}"

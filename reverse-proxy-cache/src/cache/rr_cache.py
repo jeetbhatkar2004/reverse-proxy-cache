@@ -50,11 +50,8 @@ class RRCache:
         return items
 
     def clear(self):
-        # Delete all keys related to this cache instance
-        keys = self.redis.smembers(self.key_set)
-        if keys:
-            self.redis.delete(*keys)
-        self.redis.delete(self.key_set)
+        # Flush the entire Redis database used by this cache
+        self.redis.flushdb()
         # Reset hits and misses counters in Redis
         self.redis.set(self.hits_key, 0)
         self.redis.set(self.misses_key, 0)

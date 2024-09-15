@@ -72,16 +72,12 @@ class LFUCache:
             if value is not None:
                 items.append((key_str, value.decode('utf-8')))
         return items
-
     def clear(self):
-        # Delete all keys related to this cache instance
-        keys = self.redis.keys(f"{self.cache_prefix}:*")
-        if keys:
-            self.redis.delete(*keys)
+        # Flush the entire Redis database used by this cache
+        self.redis.flushdb()
         # Reset hits and misses counters in Redis
         self.redis.set(self.hits_key, 0)
         self.redis.set(self.misses_key, 0)
-        self.min_freq = 0
 
     def __str__(self):
         keys = self.redis.hkeys(f"{self.cache_prefix}:freq_map")
