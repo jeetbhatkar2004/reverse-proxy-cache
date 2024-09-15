@@ -44,7 +44,7 @@ async def process_message(websocket, message):
     cache_strategy = data.get("cacheStrategy", "LRU")
     load_balancer = data.get("loadBalancer", "round_robin")
     num_nodes = data.get("numNodes", 1)
-    cache_size = data.get("cacheSize", 1)  # Default to 32 if not provided
+    cache_size = data.get("cacheSize", 1)  # Default to 1 if not provided
 
     print(f"Cache strategy selected: {cache_strategy}")
     print(f"Load balancer selected: {load_balancer}")
@@ -53,13 +53,19 @@ async def process_message(websocket, message):
     print(f"URLs to fetch: {urls}")
 
     cache_class = get_cache_strategy(cache_strategy)
-    proxy = ReverseProxy(cache_class, urls, num_nodes, cache_size, load_balancer)
+    redis_db_number = 1  # Use a separate Redis database for the cache
+    cache_instance = cache_class(capacity=cache_size, redis_db=redis_db_number)
 
+    # Clear the cache at the start of processing
+    cache_instance.clear()
+
+    proxy = ReverseProxy(cache_instance, urls, num_nodes, cache_size, load_balancer)
     await proxy.process_urls(websocket)
 
     # Send a final message to indicate all URLs have been processed
     await websocket.send(json.dumps({"data": "All URLs processed", "final": True}))
     print("All URLs processed. Closing connection.")
+    proxy.save_cache_to_csv()
 
 
 

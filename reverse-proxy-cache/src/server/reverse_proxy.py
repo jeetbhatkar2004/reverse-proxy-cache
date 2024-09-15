@@ -1,6 +1,7 @@
 import asyncio
 import aiohttp
 import time
+import csv
 import json
 from .load_balancers import (
     RoundRobinLoadBalancer,
@@ -17,8 +18,8 @@ class Node:
         self.active_connections = 0
 
 class ReverseProxy:
-    def __init__(self, cache_class, urls, num_nodes, cache_size, load_balancer_type="round_robin"):
-        self.cache = cache_class(capacity=cache_size)
+    def __init__(self, cache_instance, urls, num_nodes, cache_size, load_balancer_type="round_robin"):
+        self.cache = cache_instance
         self.urls = asyncio.Queue()
         for url in urls:
             self.urls.put_nowait(url)
@@ -87,22 +88,32 @@ class ReverseProxy:
 
     async def fetch(self, url, node):
         async with self.url_locks[url]:
-            if self.cache.contains(url):
+            content = self.cache.get(url)
+            if content != -1:
                 print(f"Cache hit for {url} on Node {node.port}")
-                content = self.cache.get(url)
                 return ("Cache hit", content, node.port)
+            else:
+                print(f"Cache miss for {url} on Node {node.port}")
+                try:
+                    async with self.session.get(url, ssl=False, timeout=1) as response:
+                        content = await response.text()
+                        self.cache.put(url, content)
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    print(f"Failed to fetch {url} on Node {node.port}: {e}")
+                    return (f"Error fetching {url}", None, node.port)
 
-            print(f"Cache miss for {url} on Node {node.port}")
-            try:
-                async with self.session.get(url, ssl=False, timeout=1) as response:
-                    content = await response.text()
-                    self.cache.put(url, content)
-            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                print(f"Failed to fetch {url} on Node {node.port}: {e}")
-                return (f"Error fetching {url}", None, node.port)
+                return (f"Cache miss (Node {node.port})", content, node.port)
 
-            return (f"Cache miss (Node {node.port})", content, node.port)
 
     def get_node_status(self):
         return [f"Port {node.port}: {'Serving ' + node.current_url if node.current_url else 'Idle'} (Active: {node.active_connections})" 
                 for node in self.nodes]
+        
+    def save_cache_to_csv(self, filename='cached_content.csv'):
+        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+            fieldnames = ['url', 'content']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for url, content in self.cache.items():
+                writer.writerow({'url': url, 'content': content})
+        print(f"Cached content saved to {filename}")
