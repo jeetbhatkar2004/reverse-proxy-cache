@@ -156,20 +156,25 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleSocketClose(event) {
         console.log('WebSocket connection closed:', event);
     }
+    // Event listener for the "View Cached Content" button
     viewCachedContentBtn.addEventListener('click', () => {
-        fetchCachedContent();
-        modal.style.display = 'flex'; // Change to flex for centering content
+        fetchCachedContent(); // Fetch content when the button is clicked
+        modal.style.display = 'flex'; // Show the modal when the button is clicked
     });
-    
+
+    // Event listener for the close button
     closeBtn.addEventListener('click', () => {
-        modal.style.display = 'none';
+        modal.style.display = 'none'; // Close the modal when the close button is clicked
     });
-    
+
+    // Event listener to close the modal when clicking outside the content area
     window.addEventListener('click', (event) => {
         if (event.target === modal) {
-            modal.style.display = 'none';
+            modal.style.display = 'none'; // Close the modal if clicked outside
         }
     });
+
+    
     
     function fetchCachedContent() {
         fetch('http://localhost:5001/get_cached_content')  // Port updated to 5001

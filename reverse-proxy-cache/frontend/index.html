@@ -107,35 +107,34 @@
             display: inline-block;
             margin-bottom: 3px;
         }
-        /* Styles for the modal */
+        /* Styles for the modal background */
         #cached-content-modal {
             display: none; /* Hidden by default */
-            position: fixed; /* Fixed position */
-            z-index: 1000; /* Ensure it is above other elements */
+            position: fixed; /* Fixed position to cover the entire screen */
+            z-index: 1000; /* Above other content */
             left: 0;
             top: 0;
             width: 100vw; /* Full viewport width */
             height: 100vh; /* Full viewport height */
-            background-color: rgba(0, 0, 0, 0.7); /* Semi-transparent background */
-            display: flex; /* Centering content */
+            background-color: rgba(0, 0, 0, 0.7); /* Dark semi-transparent background */
+            display: flex; /* Center modal content */
             justify-content: center; /* Center horizontally */
             align-items: center; /* Center vertically */
         }
 
-        /* Modal content */
+        /* Modal content taking up nearly the full screen */
         #cached-content {
-            background-color: #fff; /* White background for the modal content */
-            padding: 20px; /* Padding around the content */
-            border-radius: 8px; /* Rounded corners */
-            width: 80%; /* 80% of the screen width */
-            max-width: 800px; /* Max width of the modal */
-            max-height: 80vh; /* Prevents the modal from being too tall */
-            overflow-y: auto; /* Adds a scrollbar if content overflows vertically */
+            background-color: #fff; /* White background for content */
+            width: 98vw; /* Almost full screen width */
+            height: 98vh; /* Almost full screen height */
+            border-radius: 4px; /* Slight rounding on the corners */
+            overflow-y: auto; /* Scrollable if content exceeds height */
+            margin: 0; /* Remove default margins */
         }
 
         /* Close button */
         #cached-content-modal .close {
-            position: absolute; /* Position the close button */
+            position: absolute; /* Position close button */
             top: 10px;
             right: 20px;
             font-size: 24px;
@@ -143,6 +142,7 @@
             cursor: pointer;
             color: #fff;
         }
+
 
         #view-cached-content {
             display: none;
@@ -264,7 +264,7 @@
     <div id="cached-content-modal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
-            <h2>Cached Content</h2>
+            <h2>Cached Content HTML/CSS Code</h2>
             <pre id="cached-content"></pre>
         </div>
     </div>
