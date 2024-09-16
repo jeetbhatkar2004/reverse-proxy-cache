@@ -12,7 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const nodeStatusElement = document.getElementById('node-status');
     const cacheSizeInput = document.getElementById('cache-size');
     const loadBalancerSelect = document.getElementById('load-balancer');
-
+    const viewCachedContentBtn = document.getElementById('view-cached-content');
+    const modal = document.getElementById('cached-content-modal');
+    const closeBtn = modal.querySelector('.close');
+    const cachedContent = document.getElementById('cached-content');
 
     let socket;
     let startTime;
@@ -37,6 +40,45 @@ document.addEventListener('DOMContentLoaded', () => {
         closeExistingSocket();
         initializeWebSocket(urls, cacheStrategy, loadBalancer, numNodes, cacheSize);
     }
+
+    function initializeWebSocket(urls, cacheStrategy, loadBalancer, numNodes, cacheSize) {
+        socket = new WebSocket('ws://localhost:6789');
+        totalUrls = urls.length;
+
+        socket.onopen = () => handleSocketOpen(urls, cacheStrategy, loadBalancer, numNodes, cacheSize);
+        socket.onmessage = handleSocketMessage;
+        socket.onerror = handleSocketError;
+        socket.onclose = handleSocketClose;
+
+        console.log('Form submitted. Starting WebSocket connection...');
+    }
+
+    function handleSocketOpen(urls, cacheStrategy, loadBalancer, numNodes, cacheSize) {
+        const data = JSON.stringify({ urls, cacheStrategy, loadBalancer, numNodes, cacheSize });
+        socket.send(data);
+        console.log('WebSocket opened. Sent initial data:', data);
+    }
+
+    function handleSocketMessage(event) {
+        let response;
+        try {
+            response = JSON.parse(event.data);
+        } catch (e) {
+            console.log("Received non-JSON message:", event.data);
+            response = { data: event.data };
+        }
+
+        updateLog(response.data);
+        updateNodeStatus(response.nodeStatus);
+        updateProcessedCount();
+        updateTimeTaken();
+        updateCacheStats(response.cacheStats);
+
+        if (response.final) {
+            handleProcessingComplete();
+        }
+    }
+
     function updateLog(message) {
         const newMessage = document.createElement('p');
         newMessage.textContent = message;
@@ -57,108 +99,19 @@ document.addEventListener('DOMContentLoaded', () => {
         completionMessage.textContent = `Processing complete. ${processedCount} out of ${totalUrls} URLs processed.`;
         completionMessage.style.fontWeight = 'bold';
         logMessages.appendChild(completionMessage);
-        logMessages.scrollTop = logMessages.scrollHeight;
 
-        console.log(`All URLs processed or stopped due to busy nodes. Final time: ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
-    }
-    function initializeWebSocket(urls, cacheStrategy, loadBalancer,numNodes, cacheSize) {
-        socket = new WebSocket('ws://localhost:6789');
-        totalUrls = urls.length;
+        console.log(`All URLs processed. Final time: ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
 
-        socket.onopen = () => handleSocketOpen(urls, cacheStrategy,loadBalancer, numNodes, cacheSize);
-        socket.onmessage = handleSocketMessage;
-        socket.onerror = handleSocketError;
-        socket.onclose = handleSocketClose;
-
-        console.log('Form submitted. Starting WebSocket connection...');
-    }
-
-    function handleSocketOpen(urls, cacheStrategy, loadBalancer, numNodes, cacheSize) {
-        const data = JSON.stringify({ urls, cacheStrategy, loadBalancer, numNodes, cacheSize });
-        socket.send(data);
-        console.log('WebSocket opened. Sent initial data:', data);
-    }
-
-    function resetUI() {
-        logMessages.innerHTML = '';
-        dashboard.style.display = 'none';
-        nodeStatusElement.innerHTML = '';
-        processedCount = 0;
-        startTime = Date.now();
-    }
-
-    function closeExistingSocket() {
-        if (socket && socket.readyState === WebSocket.OPEN) {
-            socket.close();
-        }
-    }
-
-    function initializeWebSocket(urls, cacheStrategy, loadBalancer,numNodes, cacheSize) {
-        socket = new WebSocket('ws://localhost:6789');
-        totalUrls = urls.length;
-
-        socket.onopen = () => handleSocketOpen(urls, cacheStrategy, loadBalancer, numNodes, cacheSize);
-        socket.onmessage = handleSocketMessage;
-        socket.onerror = handleSocketError;
-        socket.onclose = handleSocketClose;
-
-        console.log('Form submitted. Starting WebSocket connection...');
-    }
-
-    function handleSocketOpen(urls, cacheStrategy, loadBalancer,numNodes, cacheSize) {
-        const data = JSON.stringify({ urls, cacheStrategy, loadBalancer,numNodes, cacheSize });
-        socket.send(data);
-        console.log('WebSocket opened. Sent initial data.');
-    }
-
-    function handleSocketMessage(event) {
-        let response;
-        try {
-            response = JSON.parse(event.data);
-        } catch (e) {
-            console.log("Received non-JSON message:", event.data);
-            response = { data: event.data };
-        }
-
-        updateLog(response.data);
-        updateNodeStatus(response.nodeStatus);
-        updateProcessedCount();
-        updateTimeTaken();
-        updateCacheStats(response.cacheStats);
-
-        if (response.data.includes("Failed to fetch") || processedCount === totalUrls) {
-            handleProcessingComplete();
-        }
-    }
-
-    function updateLog(message) {
-        const newMessage = document.createElement('li');
-        newMessage.textContent = message;
-        logMessages.appendChild(newMessage);
-
-        if (message.includes("All nodes busy")) {
-            const busyMessage = document.createElement('li');
-            busyMessage.textContent = "Processing stopped: All nodes are busy";
-            busyMessage.style.color = 'red';
-            logMessages.appendChild(busyMessage);
-        }
-    }
-
-    function handleProcessingComplete() {
-        const completionMessage = document.createElement('li');
-        completionMessage.textContent = `Processing complete. ${processedCount} out of ${totalUrls} URLs processed.`;
-        completionMessage.style.fontWeight = 'bold';
-        logMessages.appendChild(completionMessage);
-
-        console.log(`All URLs processed or stopped due to busy nodes. Final time: ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
+        // Show the "View Cached Content" button
+        viewCachedContentBtn.style.display = 'block';
     }
 
     function updateNodeStatus(nodeStatus) {
         if (nodeStatus) {
-            const nodeStatusElement = document.getElementById('node-status');
             nodeStatusElement.value = nodeStatus.join('\n');
         }
     }
+
     function updateProcessedCount() {
         processedCount += 1;
         console.log(`Message ${processedCount}/${totalUrls} received.`);
@@ -181,6 +134,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function resetUI() {
+        logMessages.innerHTML = '';
+        dashboard.style.display = 'none';
+        nodeStatusElement.value = '';
+        processedCount = 0;
+        startTime = Date.now();
+        viewCachedContentBtn.style.display = 'none';
+    }
+
+    function closeExistingSocket() {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.close();
+        }
+    }
+
     function handleSocketError(error) {
         console.error('WebSocket Error:', error);
     }
@@ -188,4 +156,36 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleSocketClose(event) {
         console.log('WebSocket connection closed:', event);
     }
+    viewCachedContentBtn.addEventListener('click', () => {
+        fetchCachedContent();
+        modal.style.display = 'flex'; // Change to flex for centering content
+    });
+    
+    closeBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+    
+    window.addEventListener('click', (event) => {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+    
+    function fetchCachedContent() {
+        fetch('http://localhost:5001/get_cached_content')  // Port updated to 5001
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Error: ${response.status} - ${response.statusText}`);
+                }
+                return response.text();
+            })
+            .then(data => {
+                cachedContent.textContent = data;
+            })
+            .catch(error => {
+                console.error('Error fetching cached content:', error);
+                cachedContent.textContent = 'Error fetching cached content. Please try again.';
+            });
+    }
+    
 });

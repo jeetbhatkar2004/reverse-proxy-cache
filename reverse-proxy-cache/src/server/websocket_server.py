@@ -3,6 +3,10 @@ import json
 import websockets
 import sys
 import os
+from flask import Flask, send_file
+from threading import Thread
+from flask_cors import CORS  # Import CORS
+
 # Add the project's root directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
@@ -35,7 +39,6 @@ async def handle_client(websocket, path, stop_server_event):
     finally:
         stop_server_event.set()
 
-
 async def process_message(websocket, message):
     print(f"Received message: {message}")
     data = json.loads(message)
@@ -66,22 +69,45 @@ async def process_message(websocket, message):
     print("All URLs processed. Closing connection.")
     proxy.save_cache_to_csv()
 
-
-
-async def start_server(stop_server_event):
+async def start_websocket_server(stop_server_event):
     server = await websockets.serve(
         lambda ws, path: handle_client(ws, path, stop_server_event),
         "localhost", 6789
     )
-    print("Server started")
+    
     await stop_server_event.wait()
+    server.close()
     await server.wait_closed()
-    print("Server stopped")
+
+# Flask app
+# Flask app
+app = Flask(__name__)
+
+# Enable CORS for the app, allowing requests from all origins
+CORS(app, resources={r"/*": {"origins": "*"}})  # You can specify origins if needed
+
+@app.route('/get_cached_content')
+def get_cached_content():
+    file_path = os.path.join(os.path.dirname(__file__), '/Users/jeetbhatkar/Documents/Code/reverse-proxy-cache/reverse-proxy-cache/src/cached_content.csv')
+    if os.path.exists(file_path):
+        return send_file(file_path, mimetype='text/csv')
+    else:
+        return "Cached content file not found", 404
+
+def run_flask_app():
+    app.run(debug=False, use_reloader=False, port=5001)  # Changed port to 5001
+
 
 async def run_server():
     stop_server_event = asyncio.Event()
-    server_task = asyncio.create_task(start_server(stop_server_event))
-    await server_task
+    
+    # Start Flask in a separate thread
+    flask_thread = Thread(target=run_flask_app)
+    flask_thread.start()
+    print("Flask server started on port 5000")
+
+    # Start WebSocket server
+    await start_websocket_server(stop_server_event)
 
 if __name__ == "__main__":
     asyncio.run(run_server())
