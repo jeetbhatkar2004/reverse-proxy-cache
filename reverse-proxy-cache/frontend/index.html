@@ -6,92 +6,171 @@
     <title>Reverse Proxy Cache with Load Balancing</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            display: flex;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 15px auto;
+            max-width: 1200px;
         }
-        .left-panel { flex: 1; }
-        .right-panel { flex: 1; margin-left: 20px; }
-        h1, h2 { color: #333; }
-        form { margin-bottom: 20px; }
-        textarea { width: 100%; }
+        h1, h2 { 
+            color: #333;
+            font-family: monospace;
+            margin: 12px 0;
+        }
+        h1 { font-size: 26px; }
+        h2 { font-size: 20px; }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .top-panel {
+            display: flex;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        .url-input, .node-status {
+            flex: 1;
+            margin-right: 15px;
+        }
+        .url-input textarea, .node-status textarea {
+            width: 100%;
+            height: 170px;
+            resize: vertical;
+            border: 1px solid #ddd;
+            padding: 8px;
+            box-sizing: border-box;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .config-panel {
+            width: 100%;
+            display: flex;
+            margin-bottom: 15px;
+        }
+        .config-inputs {
+            flex: 3;
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .config-item {
+            flex: 1 0 45%;
+            margin: 5px;
+        }
+        .submit-button {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
         button {
             padding: 10px 20px;
             background-color: #4CAF50;
             color: white;
             border: none;
             cursor: pointer;
+            font-size: 14px;
+            font-family: monospace;
         }
         button:hover { background-color: #45a049; }
-        #log { margin-top: 20px; }
-        #log ul {
-            list-style-type: none;
-            padding: 0;
+        #log {
+            width: 100%;
         }
-        #log li {
-            background: #f9f9f9;
-            margin: 5px 0;
-            padding: 10px;
+        #log-messages {
+            height: 170px;
+            overflow-y: auto;
             border: 1px solid #ddd;
+            padding: 8px;
+            background-color: #f9f9f9;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        #log-messages p {
+            margin: 4px 0;
+            padding: 3px;
+            border-bottom: 1px solid #eee;
         }
         #time-taken {
-            margin-left: 20px;
             font-weight: bold;
-            font-size: 16px;
+            font-size: 14px;
             color: #555;
+            margin-top: 8px;
+            display: block;
         }
-        #node-status {
-            border: 1px solid #ddd;
-            padding: 10px;
-            margin-top: 20px;
+        #dashboard {
+            margin-top: 15px;
+        }
+        select, input {
+            font-family: monospace;
+            font-size: 14px;
+            padding: 3px;
+        }
+        label {
+            display: inline-block;
+            margin-bottom: 3px;
         }
     </style>
 </head>
 <body>
-    <div class="left-panel">
-        <h1>Reverse Proxy Cache with Load Balancing</h1>
-        <form id="url-form">
-            <textarea id="urls" rows="10" cols="50" placeholder="Enter URLs here..."></textarea><br>
-            <label for="cache-strategy">Cache Strategy:</label>
-            <select id="cache-strategy">
-                <option value="LRU">LRU</option>
-                <option value="LFU">LFU</option>
-                <option value="FIFO">FIFO</option>
-                <option value="ARC">ARC</option>
-                <option value="RR">RR</option>
-            </select><br>
-            <label for="load-balancer">Load Balancing Strategy:</label>
-            <select id="load-balancer">
-                <option value="round_robin">Round Robin</option>
-                <option value="least_connections">Least Connections</option>
-                <option value="random">Random</option>
-                <option value="weighted_round_robin">Weighted Round Robin</option>
-                <option value="ip_hash">IP Hash</option>
-            </select><br>
-            <label for="num-nodes">Number of Nodes:</label>
-            <input type="range" id="num-nodes" min="1" max="10" value="1">
-            <span id="num-nodes-value">1</span><br>
-            <label for="cache-size">Cache Size:</label>
-            <input type="number" id="cache-size" min="1" value="32"><br><br>
-            <button type="submit">Submit</button>
-            <span id="time-taken">Time Taken: 0s</span>
-        </form>
-        
-        <div id="log">
-            <h2>Real-Time Log</h2>
-            <ul id="log-messages"></ul>
+    <h1>Reverse Proxy Cache with Load Balancing</h1>
+    <form id="url-form">
+        <div class="container">
+            <div class="top-panel">
+                <div class="url-input">
+                    <h2>Enter URLs</h2>
+                    <textarea id="urls" placeholder="Enter URLs here..."></textarea>
+                </div>
+                <div class="node-status">
+                    <h2>Active Nodes</h2>
+                    <textarea id="node-status" readonly placeholder="Active nodes will be displayed here..."></textarea>
+                </div>
+            </div>
+            <div class="config-panel">
+                <div class="config-inputs">
+                    <div class="config-item">
+                        <label for="cache-strategy">Cache Strategy:</label>
+                        <select id="cache-strategy">
+                            <option value="LRU">LRU</option>
+                            <option value="LFU">LFU</option>
+                            <option value="FIFO">FIFO</option>
+                            <option value="ARC">ARC</option>
+                            <option value="RR">RR</option>
+                        </select>
+                    </div>
+                    <div class="config-item">
+                        <label for="load-balancer">Load Balancing Strategy:</label>
+                        <select id="load-balancer">
+                            <option value="round_robin">Round Robin</option>
+                            <option value="least_connections">Least Connections</option>
+                            <option value="random">Random</option>
+                            <option value="weighted_round_robin">Weighted Round Robin</option>
+                            <option value="ip_hash">IP Hash</option>
+                        </select>
+                    </div>
+                    <div class="config-item">
+                        <label for="num-nodes">Number of Nodes:</label>
+                        <input type="range" id="num-nodes" min="1" max="10" value="1">
+                        <span id="num-nodes-value">1</span>
+                    </div>
+                    <div class="config-item">
+                        <label for="cache-size">Cache Size:</label>
+                        <input type="number" id="cache-size" min="1" value="32">
+                    </div>
+                </div>
+                <div class="submit-button">
+                    <button type="submit">Submit</button>
+                </div>
+            </div>
+            <div id="log">
+                <h2>Real-Time Log</h2>
+                <div id="log-messages"></div>
+                <span id="time-taken">Time Taken: 0s</span>
+            </div>
+            <div id="dashboard" style="display:none;">
+                <h2>Cache Statistics</h2>
+                <p id="cache-hits">Cache Hits: <span id="cache-hits-value"></span></p>
+                <p id="cache-misses">Cache Misses: <span id="cache-misses-value"></span></p>
+            </div>
         </div>
-        
-        <div id="dashboard" style="display:none;">
-            <h2>Cache Statistics</h2>
-            <p id="cache-hits">Cache Hits: <span id="cache-hits-value"></span></p>
-            <p id="cache-misses">Cache Misses: <span id="cache-misses-value"></span></p>
-        </div>
-    </div>
-    <div class="right-panel">
-        <h2>Node Status</h2>
-        <div id="node-status"></div>
-    </div>
+    </form>
 
     <script src="app.js"></script>
 </body>

@@ -37,7 +37,30 @@ document.addEventListener('DOMContentLoaded', () => {
         closeExistingSocket();
         initializeWebSocket(urls, cacheStrategy, loadBalancer, numNodes, cacheSize);
     }
+    function updateLog(message) {
+        const newMessage = document.createElement('p');
+        newMessage.textContent = message;
+        logMessages.appendChild(newMessage);
+        logMessages.scrollTop = logMessages.scrollHeight;
 
+        if (message.includes("All nodes busy")) {
+            const busyMessage = document.createElement('p');
+            busyMessage.textContent = "Processing stopped: All nodes are busy";
+            busyMessage.style.color = 'red';
+            logMessages.appendChild(busyMessage);
+            logMessages.scrollTop = logMessages.scrollHeight;
+        }
+    }
+
+    function handleProcessingComplete() {
+        const completionMessage = document.createElement('p');
+        completionMessage.textContent = `Processing complete. ${processedCount} out of ${totalUrls} URLs processed.`;
+        completionMessage.style.fontWeight = 'bold';
+        logMessages.appendChild(completionMessage);
+        logMessages.scrollTop = logMessages.scrollHeight;
+
+        console.log(`All URLs processed or stopped due to busy nodes. Final time: ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
+    }
     function initializeWebSocket(urls, cacheStrategy, loadBalancer,numNodes, cacheSize) {
         socket = new WebSocket('ws://localhost:6789');
         totalUrls = urls.length;
@@ -132,10 +155,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateNodeStatus(nodeStatus) {
         if (nodeStatus) {
-            nodeStatusElement.innerHTML = nodeStatus.join('<br>');
+            const nodeStatusElement = document.getElementById('node-status');
+            nodeStatusElement.value = nodeStatus.join('\n');
         }
     }
-
     function updateProcessedCount() {
         processedCount += 1;
         console.log(`Message ${processedCount}/${totalUrls} received.`);
