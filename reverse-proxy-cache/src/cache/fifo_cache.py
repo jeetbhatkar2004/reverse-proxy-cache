@@ -1,50 +1,60 @@
 import redis
-import threading
+import time
 
 class FIFOCache:
     def __init__(self, capacity: int, redis_host='localhost', redis_port=6379, redis_db=0):
         self.redis = redis.Redis(host=redis_host, port=redis_port, db=redis_db)
         self.capacity = capacity
+        self.key_insertion_order = f"fifo_cache_insertion_order_{id(self)}"
         self.hits_key = f"cache_hits_{id(self)}"
         self.misses_key = f"cache_misses_{id(self)}"
-        self.key_list = f"fifo_keys_{id(self)}"
-        self.lock = threading.Lock()
 
     def get(self, key: str) -> str:
-        with self.lock:
-            if not self.redis.lpos(self.key_list, key):
-                self.redis.incr(self.misses_key)
-                return '-1'
+        value = self.redis.get(key)
+        if value is None:
+            # Increment misses atomically in Redis
+            self.redis.incr(self.misses_key)
+            return -1
+        else:
+            # Increment hits atomically in Redis
             self.redis.incr(self.hits_key)
-            value = self.redis.get(key)
-            return value.decode('utf-8') if value else '-1'
+            return value.decode('utf-8')
 
     def put(self, key: str, value: str) -> None:
-        with self.lock:
-            if not self.redis.lpos(self.key_list, key):
-                if self.redis.llen(self.key_list) >= self.capacity:
-                    oldest_key = self.redis.lpop(self.key_list)
-                    if oldest_key:
-                        self.redis.delete(oldest_key)
-                self.redis.rpush(self.key_list, key)
-            self.redis.set(key, value)
+        if not self.contains(key):
+            cache_size = self.redis.zcard(self.key_insertion_order)
+            if cache_size >= self.capacity:
+                self._evict()
+
+        self.redis.set(key, value)
+        # Add to insertion order with current timestamp
+        current_time = time.time()
+        self.redis.zadd(self.key_insertion_order, {key: current_time})
+
+    def _evict(self):
+        # Evict the oldest item (first item in the sorted set)
+        oldest = self.redis.zrange(self.key_insertion_order, 0, 0)
+        if oldest:
+            oldest_key = oldest[0]
+            self.redis.delete(oldest_key)
+            self.redis.zrem(self.key_insertion_order, oldest_key)
 
     def contains(self, key: str) -> bool:
-        return self.redis.lpos(self.key_list, key) is not None
+        return self.redis.exists(key) == 1
 
     def get_cache_stats(self):
+        # Retrieve hits and misses from Redis
         hits = int(self.redis.get(self.hits_key) or 0)
         misses = int(self.redis.get(self.misses_key) or 0)
         return {"hits": hits, "misses": misses}
 
     def items(self):
-        keys = self.redis.lrange(self.key_list, 0, -1)
+        keys = self.redis.zrange(self.key_insertion_order, 0, -1)
         items = []
         for key in keys:
-            key_str = key.decode('utf-8')
-            value = self.redis.get(key_str)
+            value = self.redis.get(key)
             if value is not None:
-                items.append((key_str, value.decode('utf-8')))
+                items.append((key.decode('utf-8'), value.decode('utf-8')))
         return items
 
     def clear(self):
@@ -55,5 +65,5 @@ class FIFOCache:
         self.redis.set(self.misses_key, 0)
 
     def __str__(self):
-        keys = self.redis.lrange(self.key_list, 0, -1)
-        return str([key.decode('utf-8') for key in keys])
+        items = self.items()
+        return str(dict(items))

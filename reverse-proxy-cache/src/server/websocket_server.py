@@ -3,7 +3,6 @@ import json
 import websockets
 import sys
 import os
-
 # Add the project's root directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
@@ -53,7 +52,7 @@ async def process_message(websocket, message):
     print(f"URLs to fetch: {urls}")
 
     cache_class = get_cache_strategy(cache_strategy)
-    redis_db_number = 1  # Use a separate Redis database for the cache
+    redis_db_number = 2  # Use a separate Redis database for the cache
     cache_instance = cache_class(capacity=cache_size, redis_db=redis_db_number)
 
     # Clear the cache at the start of processing
