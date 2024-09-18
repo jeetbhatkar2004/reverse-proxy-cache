@@ -5,7 +5,7 @@ import sys
 import os
 from flask import Flask, send_file
 from threading import Thread
-from flask_cors import CORS  # Import CORS
+from flask_cors import CORS
 
 # Add the project's root directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
@@ -27,17 +27,16 @@ def get_cache_strategy(strategy_name):
     }
     return cache_strategies.get(strategy_name, LRUCache)
 
-async def handle_client(websocket, path, stop_server_event):
+async def handle_client(websocket, path):
     print("New client connected")
     try:
-        message = await websocket.recv()
-        await process_message(websocket, message)
+        while True:
+            message = await websocket.recv()
+            await process_message(websocket, message)
     except websockets.exceptions.ConnectionClosed:
         print("Client disconnected")
     except Exception as e:
         print(f"Error occurred: {e}")
-    finally:
-        stop_server_event.set()
 
 async def process_message(websocket, message):
     print(f"Received message: {message}")
@@ -66,25 +65,17 @@ async def process_message(websocket, message):
 
     # Send a final message to indicate all URLs have been processed
     await websocket.send(json.dumps({"data": "All URLs processed", "final": True}))
-    print("All URLs processed. Closing connection.")
+    print("All URLs processed. Ready for next submission.")
     proxy.save_cache_to_csv()
 
-async def start_websocket_server(stop_server_event):
-    server = await websockets.serve(
-        lambda ws, path: handle_client(ws, path, stop_server_event),
-        "localhost", 6789
-    )
-    
-    await stop_server_event.wait()
-    server.close()
+async def start_websocket_server():
+    server = await websockets.serve(handle_client, "localhost", 6789)
+    print("WebSocket server started on ws://localhost:6789")
     await server.wait_closed()
 
 # Flask app
-# Flask app
 app = Flask(__name__)
-
-# Enable CORS for the app, allowing requests from all origins
-CORS(app, resources={r"/*": {"origins": "*"}})  # You can specify origins if needed
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 @app.route('/get_cached_content')
 def get_cached_content():
@@ -95,19 +86,16 @@ def get_cached_content():
         return "Cached content file not found", 404
 
 def run_flask_app():
-    app.run(debug=False, use_reloader=False, port=5001)  # Changed port to 5001
-
+    app.run(debug=False, use_reloader=False, port=5001)
 
 async def run_server():
-    stop_server_event = asyncio.Event()
-    
     # Start Flask in a separate thread
     flask_thread = Thread(target=run_flask_app)
     flask_thread.start()
-    print("Flask server started on port 5000")
+    print("Flask server started on http://localhost:5001")
 
     # Start WebSocket server
-    await start_websocket_server(stop_server_event)
+    await start_websocket_server()
 
 if __name__ == "__main__":
     asyncio.run(run_server())
