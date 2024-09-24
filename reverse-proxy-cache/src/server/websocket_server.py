@@ -3,11 +3,11 @@ import json
 import websockets
 import sys
 import os
+import socket
 from flask import Flask, send_file
 from threading import Thread
 from flask_cors import CORS
 
-# Add the project's root directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from src.cache.lru_cache import LRUCache
@@ -27,6 +27,17 @@ def get_cache_strategy(strategy_name):
     }
     return cache_strategies.get(strategy_name, LRUCache)
 
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP
+
 async def handle_client(websocket, path):
     print("New client connected")
     try:
@@ -45,7 +56,7 @@ async def process_message(websocket, message):
     cache_strategy = data.get("cacheStrategy", "LRU")
     load_balancer = data.get("loadBalancer", "round_robin")
     num_nodes = data.get("numNodes", 1)
-    cache_size = data.get("cacheSize", 1)  # Default to 1 if not provided
+    cache_size = data.get("cacheSize", 1)
 
     print(f"Cache strategy selected: {cache_strategy}")
     print(f"Load balancer selected: {load_balancer}")
@@ -54,18 +65,21 @@ async def process_message(websocket, message):
     print(f"URLs to fetch: {urls}")
 
     cache_class = get_cache_strategy(cache_strategy)
-    redis_db_number = 2  # Use a separate Redis database for the cache
+    redis_db_number = 2
     cache_instance = cache_class(capacity=cache_size, redis_db=redis_db_number)
 
-    # Clear the cache at the start of processing
     cache_instance.clear()
 
-    proxy = ReverseProxy(cache_instance, urls, num_nodes, cache_size, load_balancer)
+    proxy_ip = get_local_ip()
+    proxy = ReverseProxy(cache_instance, urls, num_nodes, cache_size, load_balancer, proxy_ip)
+    
+    # Send initial proxy IP information
+    await websocket.send(json.dumps({"proxyIP": proxy_ip}))
+
     await proxy.process_urls(websocket)
 
-    # Send a final message to indicate all URLs have been processed
-    await websocket.send(json.dumps({"data": "All URLs processed", "final": True}))
-    print("All URLs processed. Ready for next submission.")
+    await websocket.send(json.dumps({"data": "All URLs processed", "final": True, "proxyIP": proxy_ip}))
+    print("All URLs processed. Ready for next request.")
     proxy.save_cache_to_csv()
 
 async def start_websocket_server():
@@ -73,7 +87,6 @@ async def start_websocket_server():
     print("WebSocket server started on ws://localhost:6789")
     await server.wait_closed()
 
-# Flask app
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
@@ -89,12 +102,10 @@ def run_flask_app():
     app.run(debug=False, use_reloader=False, port=5001)
 
 async def run_server():
-    # Start Flask in a separate thread
     flask_thread = Thread(target=run_flask_app)
     flask_thread.start()
-    print("Flask server started on http://localhost:5001")
+    print("Flask server started on port 5001")
 
-    # Start WebSocket server
     await start_websocket_server()
 
 if __name__ == "__main__":

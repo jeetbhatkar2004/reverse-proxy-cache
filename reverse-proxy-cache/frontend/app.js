@@ -14,27 +14,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadBalancerSelect = document.getElementById('load-balancer');
     const viewCachedContentBtn = document.getElementById('view-cached-content');
     const modal = document.getElementById('cached-content-modal');
-    const closeBtn = modal.querySelector('.close');
+    const closeBtn = modal ? modal.querySelector('.close') : null;
     const cachedContent = document.getElementById('cached-content');
-
+    const proxyIPElement = document.getElementById('proxy-ip');
+    const responseIPElement = document.getElementById('response-ip');
     let socket;
     let startTime;
-    let processedCount;
-    let totalUrls;
+    let processedCount = 0;
+    let totalUrls = 0;
+    let proxyIP = '';
+    let lastResponseIP = '';
 
-    numNodesSlider.addEventListener('input', () => {
-        numNodesValue.textContent = numNodesSlider.value;
-    });
+    if (numNodesSlider && numNodesValue) {
+        numNodesSlider.addEventListener('input', () => {
+            numNodesValue.textContent = numNodesSlider.value;
+        });
+    }
 
-    urlForm.addEventListener('submit', handleFormSubmit);
+    if (urlForm) {
+        urlForm.addEventListener('submit', handleFormSubmit);
+    }
 
     function handleFormSubmit(event) {
         event.preventDefault();
-        const urls = urlInput.value.split('\n').filter(url => url.trim() !== "");
-        const cacheStrategy = cacheStrategySelect.value;
-        const numNodes = parseInt(numNodesSlider.value);
-        const loadBalancer = loadBalancerSelect.value;
-        const cacheSize = parseInt(cacheSizeInput.value);
+        const urls = urlInput ? urlInput.value.split('\n').filter(url => url.trim() !== "") : [];
+        const cacheStrategy = cacheStrategySelect ? cacheStrategySelect.value : 'LRU';
+        const numNodes = numNodesSlider ? parseInt(numNodesSlider.value) : 1;
+        const loadBalancer = loadBalancerSelect ? loadBalancerSelect.value : 'round_robin';
+        const cacheSize = cacheSizeInput ? parseInt(cacheSizeInput.value) : 10;
 
         resetUI();
         closeExistingSocket();
@@ -68,46 +75,61 @@ document.addEventListener('DOMContentLoaded', () => {
             response = { data: event.data };
         }
 
-        updateLog(response.data);
-        updateNodeStatus(response.nodeStatus);
-        updateProcessedCount();
+        if (response.proxyIP) {
+            proxyIP = response.proxyIP;
+            updateProxyIP();
+        }
+
+        if (response.responseIP) {
+            lastResponseIP = response.responseIP;
+            updateResponseIP();
+        }
+
+        if (response.data) {
+            updateLog(response.data, response.url, response.responseIP);
+            updateProcessedCount();
+        }
+
+        if (response.nodeStatus) {
+            updateNodeStatus(response.nodeStatus);
+        }
+
+        if (response.cacheStats) {
+            updateCacheStats(response.cacheStats);
+        }
+
         updateTimeTaken();
-        updateCacheStats(response.cacheStats);
 
         if (response.final) {
             handleProcessingComplete();
         }
     }
 
-    function updateLog(message) {
-        const newMessage = document.createElement('p');
-        newMessage.textContent = message;
-        logMessages.appendChild(newMessage);
-        logMessages.scrollTop = logMessages.scrollHeight;
-
-        if (message.includes("All nodes busy")) {
-            const busyMessage = document.createElement('p');
-            busyMessage.textContent = "Processing stopped: All nodes are busy";
-            busyMessage.style.color = 'red';
-            logMessages.appendChild(busyMessage);
+    function updateLog(message, url, responseIP) {
+        if (logMessages) {
+            const newMessage = document.createElement('p');
+            newMessage.textContent = `${message} | Response IP: ${responseIP || 'N/A'}`;
+            logMessages.appendChild(newMessage);
             logMessages.scrollTop = logMessages.scrollHeight;
         }
     }
 
+
     function handleProcessingComplete() {
-        const completionMessage = document.createElement('p');
-        completionMessage.textContent = `Processing complete. ${processedCount} out of ${totalUrls} URLs processed.`;
-        completionMessage.style.fontWeight = 'bold';
-        logMessages.appendChild(completionMessage);
+        if (logMessages) {
+            const completionMessage = document.createElement('p');
+            completionMessage.textContent = `Processing complete. ${processedCount - 1} out of ${totalUrls} URLs processed.`;
+            completionMessage.style.fontWeight = 'bold';
+            logMessages.appendChild(completionMessage);
+        }
 
-        console.log(`All URLs processed. Final time: ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
-
-        // Show the "View Cached Content" button
-        viewCachedContentBtn.style.display = 'block';
+        if (viewCachedContentBtn) {
+            viewCachedContentBtn.style.display = 'block';
+        }
     }
 
     function updateNodeStatus(nodeStatus) {
-        if (nodeStatus) {
+        if (nodeStatusElement && nodeStatus) {
             nodeStatusElement.value = nodeStatus.join('\n');
         }
     }
@@ -120,7 +142,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateTimeTaken() {
         const currentTime = Date.now();
         const timeTaken = (currentTime - startTime) / 1000;
-        timeTakenElement.textContent = `Time Taken: ${timeTaken.toFixed(2)}s`;
+        if (timeTakenElement) {
+            timeTakenElement.textContent = `Time Taken: ${timeTaken.toFixed(2)}s`;
+        }
         console.log(`Time taken: ${timeTaken.toFixed(2)}s`);
     }
 
@@ -128,19 +152,59 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cacheStats) {
             console.log(`Cache Hits: ${cacheStats.hits}`);
             console.log(`Cache Misses: ${cacheStats.misses}`);
-            cacheHitsElement.textContent = cacheStats.hits;
-            cacheMissesElement.textContent = cacheStats.misses;
-            dashboard.style.display = 'block';
+            if (cacheHitsElement) {
+                cacheHitsElement.textContent = cacheStats.hits;
+            }
+            if (cacheMissesElement) {
+                cacheMissesElement.textContent = cacheStats.misses;
+            }
+            if (dashboard) {
+                dashboard.style.display = 'block';
+            }
+        }
+    }
+
+    function updateProxyIP() {
+        if (proxyIPElement) {
+            proxyIPElement.textContent = `Proxy IP: ${proxyIP}`;
+            proxyIPElement.style.display = 'block';
+        }
+    }
+
+    function updateResponseIP() {
+        if (responseIPElement) {
+            responseIPElement.textContent = `Response IP: ${lastResponseIP}`;
+            responseIPElement.style.display = 'block';
         }
     }
 
     function resetUI() {
-        logMessages.innerHTML = '';
-        dashboard.style.display = 'none';
-        nodeStatusElement.value = '';
+        if (logMessages) {
+            logMessages.innerHTML = '';
+        }
+        if (dashboard) {
+            dashboard.style.display = 'none';
+        }
+        if (nodeStatusElement) {
+            nodeStatusElement.value = '';
+        }
         processedCount = 0;
         startTime = Date.now();
-        viewCachedContentBtn.style.display = 'none';
+        if (viewCachedContentBtn) {
+            viewCachedContentBtn.style.display = 'none';
+        }
+        if (proxyIPElement) {
+            proxyIPElement.textContent = '';
+        }
+        if (responseIPElement) {
+            responseIPElement.textContent = '';
+        }
+        if (cacheHitsElement) {
+            cacheHitsElement.textContent = '0';
+        }
+        if (cacheMissesElement) {
+            cacheMissesElement.textContent = '0';
+        }
     }
 
     function closeExistingSocket() {
@@ -156,28 +220,32 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleSocketClose(event) {
         console.log('WebSocket connection closed:', event);
     }
-    // Event listener for the "View Cached Content" button
-    viewCachedContentBtn.addEventListener('click', () => {
-        fetchCachedContent(); // Fetch content when the button is clicked
-        modal.style.display = 'flex'; // Show the modal when the button is clicked
-    });
 
-    // Event listener for the close button
-    closeBtn.addEventListener('click', () => {
-        modal.style.display = 'none'; // Close the modal when the close button is clicked
-    });
+    if (viewCachedContentBtn) {
+        viewCachedContentBtn.addEventListener('click', () => {
+            fetchCachedContent();
+            if (modal) {
+                modal.style.display = 'flex';
+            }
+        });
+    }
 
-    // Event listener to close the modal when clicking outside the content area
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        });
+    }
+
     window.addEventListener('click', (event) => {
-        if (event.target === modal) {
-            modal.style.display = 'none'; // Close the modal if clicked outside
+        if (modal && event.target === modal) {
+            modal.style.display = 'none';
         }
     });
 
-    
-    
     function fetchCachedContent() {
-        fetch('http://localhost:5001/get_cached_content')  // Port updated to 5001
+        fetch('http://localhost:5001/get_cached_content')
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`Error: ${response.status} - ${response.statusText}`);
@@ -185,12 +253,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 return response.text();
             })
             .then(data => {
-                cachedContent.textContent = data;
+                if (cachedContent) {
+                    cachedContent.textContent = data;
+                }
             })
             .catch(error => {
                 console.error('Error fetching cached content:', error);
-                cachedContent.textContent = 'Error fetching cached content. Please try again.';
+                if (cachedContent) {
+                    cachedContent.textContent = 'Error fetching cached content. Please try again.';
+                }
             });
     }
-    
 });

@@ -3,6 +3,7 @@ import aiohttp
 import time
 import csv
 import json
+import socket
 from .load_balancers import (
     RoundRobinLoadBalancer,
     LeastConnectionsLoadBalancer,
@@ -18,7 +19,7 @@ class Node:
         self.active_connections = 0
 
 class ReverseProxy:
-    def __init__(self, cache_instance, urls, num_nodes, cache_size, load_balancer_type="round_robin"):
+    def __init__(self, cache_instance, urls, num_nodes, cache_size, load_balancer_type="round_robin", proxy_ip=None):
         self.cache = cache_instance
         self.urls = asyncio.Queue()
         for url in urls:
@@ -28,22 +29,28 @@ class ReverseProxy:
         self.processed_urls = set()
         self.total_urls = len(urls)
         self.load_balancer_type = load_balancer_type
+        self.proxy_ip = proxy_ip or '127.0.0.1'
         
-        # Initialize the load balancer
+        self.load_balancer = self.initialize_load_balancer(load_balancer_type, num_nodes)
+
+    def get_local_ip(self):
+        return self.proxy_ip
+
+    def initialize_load_balancer(self, load_balancer_type, num_nodes):
         if load_balancer_type == "round_robin":
-            self.load_balancer = RoundRobinLoadBalancer(self.nodes)
+            return RoundRobinLoadBalancer(self.nodes)
         elif load_balancer_type == "least_connections":
-            self.load_balancer = LeastConnectionsLoadBalancer(self.nodes)
+            return LeastConnectionsLoadBalancer(self.nodes)
         elif load_balancer_type == "random":
-            self.load_balancer = RandomLoadBalancer(self.nodes)
+            return RandomLoadBalancer(self.nodes)
         elif load_balancer_type == "weighted_round_robin":
             weights = [1] * num_nodes  # You can adjust these weights as needed
-            self.load_balancer = WeightedRoundRobinLoadBalancer(self.nodes, weights)
+            return WeightedRoundRobinLoadBalancer(self.nodes, weights)
         elif load_balancer_type == "ip_hash":
-            self.load_balancer = IPHashLoadBalancer(self.nodes)
+            return IPHashLoadBalancer(self.nodes)
         else:
             print(f"Unknown load balancer type: {load_balancer_type}. Using Round Robin.")
-            self.load_balancer = RoundRobinLoadBalancer(self.nodes)
+            return RoundRobinLoadBalancer(self.nodes)
 
     async def process_urls(self, websocket):
         async with aiohttp.ClientSession() as session:
@@ -55,55 +62,61 @@ class ReverseProxy:
         while not self.urls.empty():
             url = await self.urls.get()
             if self.load_balancer_type == "ip_hash":
-                node = self.load_balancer.get_next_node(url)  # Using URL as a mock for IP
+                node = self.load_balancer.get_next_node(url)  # Pass URL as IP for IP hash
             else:
                 node = self.load_balancer.get_next_node()
             node.active_connections += 1
             node.current_url = url
 
             try:
-                cache_status, content, port = await self.fetch(url, node)
+                cache_status, content, port, response_ip = await self.fetch(url, node)
             finally:
                 node.active_connections -= 1
                 node.current_url = None
 
             self.processed_urls.add(url)
 
-            cache_stats = self.cache.get_cache_stats()
-            node_status = self.get_node_status()
-
-            response_json = json.dumps({
-                "data": f"{cache_status} for {url}",
-                "cacheStats": cache_stats,
-                "nodeStatus": node_status,
-                "progress": f"{len(self.processed_urls)}/{self.total_urls}",
-                "loadBalancer": self.load_balancer_type
-            })
-            
-            print(f"Sending response: {response_json}")
-            await websocket.send(response_json)
+            await self.send_response(websocket, url, cache_status, response_ip)
 
             if len(self.processed_urls) >= self.total_urls:
                 return
+
 
     async def fetch(self, url, node):
         async with self.url_locks[url]:
             content = self.cache.get(url)
             if content != -1:
                 print(f"Cache hit for {url} on Node {node.port}")
-                return ("Cache hit", content, node.port)
+                return ("Cache hit", content, node.port, self.proxy_ip)
             else:
                 print(f"Cache miss for {url} on Node {node.port}")
                 try:
-                    async with self.session.get(url, ssl=False, timeout=1) as response:
+                    async with self.session.get(url, ssl=False, timeout=3) as response:
                         content = await response.text()
                         self.cache.put(url, content)
+                        response_ip = response.url.host
                 except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                     print(f"Failed to fetch {url} on Node {node.port}: {e}")
-                    return (f"Error fetching {url}", None, node.port)
+                    return (f"Error fetching {url}", None, node.port, None)
 
-                return (f"Cache miss (Node {node.port})", content, node.port)
+                return (f"Cache miss (Node {node.port})", content, node.port, response_ip)
+    async def send_response(self, websocket, url, cache_status, response_ip):
+        cache_stats = self.cache.get_cache_stats()
+        node_status = self.get_node_status()
 
+        response_json = json.dumps({
+            "data": f"{cache_status} for {url}",
+            "cacheStats": cache_stats,
+            "nodeStatus": node_status,
+            "progress": f"{len(self.processed_urls)}/{self.total_urls}",
+            "loadBalancer": self.load_balancer_type,
+            "proxyIP": self.proxy_ip,
+            "responseIP": response_ip or "N/A",
+            "url": url
+        })
+        
+        print(f"Sending response: {response_json}")
+        await websocket.send(response_json)
 
     def get_node_status(self):
         return [f"Port {node.port}: {'Serving ' + node.current_url if node.current_url else 'Idle'} (Active: {node.active_connections})" 
@@ -117,3 +130,6 @@ class ReverseProxy:
             for url, content in self.cache.items():
                 writer.writerow({'url': url, 'content': content})
         print(f"Cached content saved to {filename}")
+
+    def get_proxy_ip(self):
+        return self.proxy_ip
