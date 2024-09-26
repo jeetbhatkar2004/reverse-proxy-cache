@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reverse Proxy Cache with Load Balancing</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --background-color: #f0f0f0;
+            --card-background: #ffffff;
+            --border-color: #ddd;
+        }
+        body {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--background-color);
+            color: var(--secondary-color);
+            height: 100vh;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+        .container {
+            max-width: 85%;
+            height: calc(100vh - 300px);  /* Reduced overall height */
+            margin: 0 auto;
+            background-color: var(--card-background);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        h1, h2, h3 {
+            margin-top: 0;
+            color: var(--secondary-color);
+        }
+        h1 {
+            font-size: 22px;
+            margin-bottom: 10px;
+        }
+        h2 {
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            overflow: hidden;
+        }
+        .grid-item {
+            background-color: var(--card-background);
+            padding: 8px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        textarea, select, input {
+            width: 100%;
+            padding: 4px;
+            margin-bottom: 4px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-family: inherit;
+            font-size: inherit;
+        }
+        textarea {
+            height: 100%;  /* Take up all available space */
+            resize: none;  /* Prevent resizing */
+        }
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .scrollable {
+            overflow: auto;
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            height: 100%;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 4px;
+            text-align: left;
+            min-width: 100px;
+        }
+        th {
+            background-color: #d1e8f5;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            overflow: auto;
+        }
+        .modal-content {
+            background-color: var(--card-background);
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            width: 90%;
+            max-width: 1000px;
+            max-height: 80vh;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .modal-body {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover,
+        .close:focus {
+            color: #000;
+            text-decoration: none;
+        }
+        .flex-container {
+            display: flex;
+            gap: 10px;
+            height: 100%;
+            overflow: hidden;
+        }
+        .flex-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            overflow: hidden;
+        }
+        .footer {
+            margin-top: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #log-messages, #network-report {
+            white-space: nowrap;
+        }
+        #url-form {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+        .log-container {
+            display: flex;
+            flex-direction: column;
+            height: 350px;  /* Reduced height */
+            overflow: hidden;
+        }
+        .top-container {
+            display: flex;
+            flex-direction: column;
+            height: 180px;  /* Fixed height for top container */
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        p {
+            margin: 2px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Reverse Proxy Cache with Load Balancing</h1>
+        
+        <form id="url-form">
+            <div class="top-container">
+                <div class="grid-container">
+                    <div class="grid-item" style="display: flex; flex-direction: column;">
+                        <h2>Enter URLs</h2>
+                        <textarea id="urls" placeholder="Enter URLs here, one per line..."></textarea>
+                    </div>
+                    <div class="grid-item">
+                        <h2>Configuration</h2>
+                        <div class="flex-container">
+                            <div class="flex-item">
+                                <label for="cache-strategy">Cache Strategy:</label>
+                                <select id="cache-strategy">
+                                    <option value="LRU">LRU</option>
+                                    <option value="LFU">LFU</option>
+                                    <option value="FIFO">FIFO</option>
+                                    <option value="ARC">ARC</option>
+                                    <option value="RR">RR</option>
+                                </select>
+                            </div>
+                            <div class="flex-item">
+                                <label for="load-balancer">Load Balancing:</label>
+                                <select id="load-balancer">
+                                    <option value="round_robin">Round Robin</option>
+                                    <option value="least_connections">Least Connections</option>
+                                    <option value="random">Random</option>
+                                    <option value="weighted_round_robin">Weighted Round Robin</option>
+                                    <option value="ip_hash">IP Hash</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex-container">
+                            <div class="flex-item">
+                                <label for="num-nodes">Nodes: <span id="num-nodes-value">1</span></label>
+                                <input type="range" id="num-nodes" min="1" max="10" value="1">
+                            </div>
+                            <div class="flex-item">
+                                <label for="cache-size">Cache Size:</label>
+                                <input type="number" id="cache-size" min="1" value="32">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid-item">
+                        <h2>Cache Statistics</h2>
+                        <p>Cache Hits: <span id="cache-hits-value">0</span></p>
+                        <p>Cache Misses: <span id="cache-misses-value">0</span></p>
+                        <h2>Network Trace Summary</h2>
+                        <p>Packets Sent: <span id="packets-sent">0</span></p>
+                        <p>Packets Received: <span id="packets-received">0</span></p>
+                        <p>Proxy IP: <span id="proxy-ip"></span></p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="grid-item full-width" style="flex-grow: 1;">
+                <div class="flex-container">
+                    <div class="flex-item">
+                        <h2>Real-Time Log</h2>
+                        <div class="log-container">
+                            <div id="log-messages" class="scrollable"></div>
+                        </div>
+                    </div>
+                    <div class="flex-item">
+                        <h2>Detailed Network Report</h2>
+                        <div class="log-container">
+                            <div id="network-report" class="scrollable">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>URL</th>
+                                            <th>Response IP</th>
+                                            <th>Status</th>
+                                            <th>Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="network-report-body">
+                                        <!-- Network report will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="footer">
+                <div>
+                    <button type="submit">Submit</button>
+                    <button id="view-cached-content" style="display:none;">View Cached Content</button>
+                </div>
+                <span id="time-taken">Time Taken: 0s</span>
+            </div>
+        </form>
+    </div>
+
+    <div id="cached-content-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Cached Content</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <pre id="cached-content"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
