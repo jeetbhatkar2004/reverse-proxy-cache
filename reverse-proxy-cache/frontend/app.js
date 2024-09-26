@@ -161,6 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+
     function showCachedContentModal() {
         fetchCachedContent();
         modal.style.display = 'block';
